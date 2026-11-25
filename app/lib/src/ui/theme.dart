@@ -157,8 +157,8 @@ TextStyle editorStyle(Settings s, Color color) {
     Typeface.sans => (null, null),
   };
   return TextStyle(
-    fontFamily: family,
-    fontFamilyFallback: fallback,
+    fontFamily: s.family ?? family,
+    fontFamilyFallback: s.family == null ? fallback : [?family, ...?fallback],
     fontSize: s.size,
     height: s.lineHeight,
     color: color,

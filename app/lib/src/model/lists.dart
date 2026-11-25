@@ -175,9 +175,14 @@ TextEditingValue? indentLines(TextEditingValue value, {required bool outdent}) {
   );
 }
 
-/// Turns the selected lines into a bulleted (or numbered) list, or back into
-/// plain lines when they already are one.
-TextEditingValue toggleList(TextEditingValue value, {required bool ordered}) {
+/// Turns the selected lines into a bulleted (or numbered, or checklist) list,
+/// or back into plain lines when they already are one.
+TextEditingValue toggleList(
+  TextEditingValue value, {
+  required bool ordered,
+  bool task = false,
+}) {
+  if (task) ordered = false;
   final s = value.selection.isValid
       ? value.selection
       : const TextSelection.collapsed(offset: 0);
@@ -194,7 +199,10 @@ TextEditingValue toggleList(TextEditingValue value, {required bool ordered}) {
         i,
   ];
   final remove = process.every(
-    (i) => items[i] != null && items[i]!.ordered == ordered,
+    (i) =>
+        items[i] != null &&
+        items[i]!.ordered == ordered &&
+        (!task || items[i]!.checkbox != null),
   );
   for (var k = process.length - 1; k >= 0; k--) {
     final i = process[k];
@@ -206,7 +214,8 @@ TextEditingValue toggleList(TextEditingValue value, {required bool ordered}) {
     final oldEnd = start + (item?.prefixLength ?? indent.length);
     final prefix = remove
         ? indent
-        : '$indent${ordered ? '$number.' : '-'} ${item?.checkbox ?? ''}';
+        : '$indent${ordered ? '$number.' : '-'} '
+              '${task ? (item?.checkbox ?? '[ ] ') : (item?.checkbox ?? '')}';
     final delta = prefix.length - (oldEnd - start);
     text = text.replaceRange(start, oldEnd, prefix);
     int move(int o) => o >= oldEnd

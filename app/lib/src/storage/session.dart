@@ -23,10 +23,14 @@ class Settings {
     this.lineHeight = 1.6,
     this.wrap = true,
     this.status = true,
+    this.family,
   });
 
   Appearance appearance;
   Typeface font;
+
+  /// An installed font family chosen in Settings. Overrides [font] when set.
+  String? family;
   double size;
   double lineHeight;
   bool wrap;
@@ -46,6 +50,10 @@ class Settings {
         .toDouble(),
     wrap: j['wrap'] as bool? ?? true,
     status: j['status'] as bool? ?? true,
+    family: switch (j['family']) {
+      final String f when f.trim().isNotEmpty => f,
+      _ => null,
+    },
   );
 
   Map<String, dynamic> toJson() => {
@@ -55,6 +63,7 @@ class Settings {
     'line_height': lineHeight,
     'wrap': wrap,
     'status': status,
+    if (family != null) 'family': family,
   };
 }
 

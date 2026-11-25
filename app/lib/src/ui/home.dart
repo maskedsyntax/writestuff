@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 
 import '../app_state.dart';
 import '../storage/session.dart';
+import '../platform/fonts.dart';
 import 'pane_view.dart';
 import 'sidebar.dart';
 import 'theme.dart';
@@ -53,6 +54,8 @@ VoidCallback? shortcutFor(AppState state, KeyEvent event) {
     return () => state.split(horizontal: !shift);
   }
   if (key == LogicalKeyboardKey.keyF) return state.toggleFind;
+  if (shift && key == LogicalKeyboardKey.keyP) return state.toggleSideBySide;
+  if (key == LogicalKeyboardKey.keyP) return state.togglePreview;
   if (shift &&
       (key == LogicalKeyboardKey.digit8 ||
           key == LogicalKeyboardKey.asterisk)) {
@@ -64,6 +67,17 @@ VoidCallback? shortcutFor(AppState state, KeyEvent event) {
     return () => state.toggleList(ordered: true);
   }
   if (key == LogicalKeyboardKey.comma) return state.toggleSettings;
+  // Formatting only applies while typing, so other fields keep their keys.
+  if (state.editorFocused) {
+    if (key == LogicalKeyboardKey.keyB) return state.bold;
+    if (key == LogicalKeyboardKey.keyI) return state.italic;
+    if (key == LogicalKeyboardKey.keyK) return state.link;
+    if (key == LogicalKeyboardKey.keyE) return state.code;
+    if (shift && key == LogicalKeyboardKey.keyX) return state.strikethrough;
+    if (shift && key == LogicalKeyboardKey.digit9) {
+      return () => state.toggleList(ordered: false, task: true);
+    }
+  }
   return null;
 }
 
@@ -403,9 +417,17 @@ class _ConfirmCard extends StatelessWidget {
   }
 }
 
-class SettingsCard extends StatelessWidget {
+class SettingsCard extends StatefulWidget {
   const SettingsCard({super.key, required this.state});
   final AppState state;
+
+  @override
+  State<SettingsCard> createState() => _SettingsCardState();
+}
+
+class _SettingsCardState extends State<SettingsCard> {
+  AppState get state => widget.state;
+  late bool _picking = state.settings.family != null;
 
   @override
   Widget build(BuildContext context) {
@@ -494,84 +516,251 @@ class SettingsCard extends StatelessWidget {
     );
 
     return SizedBox(
-      width: 440,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(24, 20, 24, 18),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              children: [
-                Text(
-                  'Settings',
-                  style: TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.w700,
-                    color: t.text,
+      width: 500,
+      // Scrolls when the font list makes the card taller than the window.
+      child: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 20, 24, 18),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Text(
+                    'Settings',
+                    style: TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w700,
+                      color: t.text,
+                    ),
+                  ),
+                  const Spacer(),
+                  _Button('Done', state.toggleSettings, primary: true),
+                ],
+              ),
+              const SizedBox(height: 14),
+              row(
+                'Theme',
+                segments(
+                  Appearance.values,
+                  s.appearance,
+                  (v) => s.appearance = v,
+                ),
+              ),
+              row(
+                'Font',
+                Wrap(
+                  spacing: 4,
+                  children: [
+                    for (final v in Typeface.values)
+                      PillChip(
+                        label: v.name[0].toUpperCase() + v.name.substring(1),
+                        selected: s.family == null && v == s.font,
+                        onTap: () {
+                          setState(() => _picking = false);
+                          state.updateSettings((s) {
+                            s.font = v;
+                            s.family = null;
+                          });
+                        },
+                      ),
+                    PillChip(
+                      label: switch (s.family) {
+                        null => 'Other…',
+                        final f when f.length > 16 => '${f.substring(0, 15)}…',
+                        final f => f,
+                      },
+                      selected: s.family != null || _picking,
+                      onTap: () => setState(() => _picking = !_picking),
+                    ),
+                  ],
+                ),
+              ),
+              if (_picking)
+                Padding(
+                  padding: const EdgeInsets.only(left: 110, bottom: 6),
+                  child: FontPicker(
+                    selected: s.family,
+                    onSelect: (family) =>
+                        state.updateSettings((s) => s.family = family),
                   ),
                 ),
-                const Spacer(),
-                _Button('Done', state.toggleSettings, primary: true),
-              ],
-            ),
-            const SizedBox(height: 14),
-            row(
-              'Theme',
-              segments(
-                Appearance.values,
-                s.appearance,
-                (v) => s.appearance = v,
+              row(
+                'Size',
+                slider(
+                  s.size,
+                  Settings.minSize,
+                  Settings.maxSize,
+                  30,
+                  s.size.toStringAsFixed(0),
+                  (v) => s.size = v,
+                ),
               ),
-            ),
-            row('Font', segments(Typeface.values, s.font, (v) => s.font = v)),
-            row(
-              'Size',
-              slider(
-                s.size,
-                Settings.minSize,
-                Settings.maxSize,
-                30,
-                s.size.toStringAsFixed(0),
-                (v) => s.size = v,
+              row(
+                'Line height',
+                slider(
+                  s.lineHeight,
+                  Settings.minLineHeight,
+                  Settings.maxLineHeight,
+                  14,
+                  s.lineHeight.toStringAsFixed(1),
+                  (v) => s.lineHeight = v,
+                ),
               ),
-            ),
-            row(
-              'Line height',
-              slider(
-                s.lineHeight,
-                Settings.minLineHeight,
-                Settings.maxLineHeight,
-                14,
-                s.lineHeight.toStringAsFixed(1),
-                (v) => s.lineHeight = v,
-              ),
-            ),
-            row('Word wrap', toggle(s.wrap, (v) => s.wrap = v)),
-            row('Status line', toggle(s.status, (v) => s.status = v)),
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(5),
-                  child: Image.asset(
-                    state.dark
-                        ? 'assets/branding/logo-dark.png'
-                        : 'assets/branding/logo-light.png',
-                    width: 22,
-                    height: 22,
-                    filterQuality: FilterQuality.medium,
+              row('Word wrap', toggle(s.wrap, (v) => s.wrap = v)),
+              row('Status line', toggle(s.status, (v) => s.status = v)),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(5),
+                    child: Image.asset(
+                      state.dark
+                          ? 'assets/branding/logo-dark.png'
+                          : 'assets/branding/logo-light.png',
+                      width: 22,
+                      height: 22,
+                      filterQuality: FilterQuality.medium,
+                    ),
                   ),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  'writestuff. just a place to write stuff.',
-                  style: TextStyle(fontSize: 11, color: t.faint),
-                ),
-              ],
-            ),
-          ],
+                  const SizedBox(width: 8),
+                  Text(
+                    'writestuff. just a place to write stuff.',
+                    style: TextStyle(fontSize: 11, color: t.faint),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
+      ),
+    );
+  }
+}
+
+/// A searchable list of installed font families, each shown in its own face.
+class FontPicker extends StatefulWidget {
+  const FontPicker({super.key, required this.selected, required this.onSelect});
+  final String? selected;
+  final ValueChanged<String> onSelect;
+
+  @override
+  State<FontPicker> createState() => _FontPickerState();
+}
+
+class _FontPickerState extends State<FontPicker> {
+  final _families = systemFontFamilies();
+  final _scroll = ScrollController();
+  String _query = '';
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    return Container(
+      decoration: BoxDecoration(
+        border: Border.all(color: t.hairline),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(10, 6, 10, 4),
+            child: Row(
+              children: [
+                Icon(CupertinoIcons.search, size: 14, color: t.muted),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: TextField(
+                    autofocus: true,
+                    onChanged: (v) => setState(() => _query = v),
+                    style: TextStyle(fontSize: 13, color: t.text),
+                    cursorColor: t.accent,
+                    decoration: InputDecoration(
+                      isCollapsed: true,
+                      border: InputBorder.none,
+                      hintText: widget.selected ?? 'Search fonts',
+                      hintStyle: TextStyle(fontSize: 13, color: t.faint),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Container(height: 1, color: t.hairline),
+          SizedBox(
+            height: 190,
+            child: FutureBuilder<List<String>>(
+              future: _families,
+              builder: (context, snap) {
+                if (!snap.hasData) {
+                  return const Center(
+                    child: CupertinoActivityIndicator(radius: 8),
+                  );
+                }
+                final q = _query.trim().toLowerCase();
+                final list = snap.data!
+                    .where((f) => f.toLowerCase().contains(q))
+                    .toList();
+                if (list.isEmpty) {
+                  return Center(
+                    child: Text(
+                      snap.data!.isEmpty
+                          ? 'Could not list installed fonts.'
+                          : 'No fonts match.',
+                      style: TextStyle(fontSize: 13, color: t.muted),
+                    ),
+                  );
+                }
+                return Scrollbar(
+                  controller: _scroll,
+                  child: ListView.builder(
+                    controller: _scroll,
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    itemCount: list.length,
+                    itemExtent: 30,
+                    itemBuilder: (context, i) {
+                      final family = list[i];
+                      final selected = family == widget.selected;
+                      return HoverButton(
+                        onPressed: () => widget.onSelect(family),
+                        padding: const EdgeInsets.symmetric(horizontal: 10),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                family,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontFamily: family,
+                                  fontSize: 14,
+                                  color: t.text,
+                                ),
+                              ),
+                            ),
+                            if (selected)
+                              Icon(
+                                CupertinoIcons.checkmark_alt,
+                                size: 15,
+                                color: t.accent,
+                              ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
       ),
     );
   }

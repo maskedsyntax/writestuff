@@ -1,121 +1,93 @@
-# writestuff
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/branding/icon-light.png">
+    <img src="assets/branding/icon-dark.png" width="112" alt="writestuff">
+  </picture>
+</p>
 
-just a place to write stuff.
+<h1 align="center">writestuff</h1>
 
-A small native Rust/Iced writing app for plain text and Markdown. Tabs, resizable
-split panes, find and replace, syntax highlighting, optional Markdown preview,
-light/dark/system themes, and local recovery. No accounts or network services.
+<p align="center"><em>just a place to write stuff.</em></p>
 
-## Build and run
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/screenshots/hero-dark.png">
+    <img src="assets/screenshots/hero-light.png" alt="writestuff with a Markdown note open">
+  </picture>
+</p>
 
-Install a current stable Rust toolchain, then:
+A quiet desktop editor for plain text and Markdown. All your documents sit in one
+sidebar, and the canvas leaves you alone to write. There are no accounts and no
+sync, and nothing ever leaves your computer.
 
-```sh
-cargo run --release
-cargo run --release -- notes.md another.txt
-```
+## Write and see it at once
 
-On macOS install the Xcode command-line tools. Windows needs the MSVC Rust
-toolchain and Visual Studio C++ build tools. Linux needs a working Wayland or X11
-desktop, Vulkan/OpenGL graphics drivers, and an XDG desktop portal for native file
-dialogs (for example `xdg-desktop-portal-gtk`). Iced can fall back to software
-rendering. Build output is `target/release/writestuff` (`writestuff.exe` on Windows).
+Every pane can show the **Edit** view, a **Side by side** view with a live preview,
+or the rendered **Preview**. Headings, emphasis, lists, quotes and code are
+highlighted as you type. Checklists become real checkboxes in the preview.
 
-```sh
-cargo fmt --check
-cargo check
-cargo clippy --all-targets -- -D warnings
-cargo test
-```
+<img src="assets/screenshots/side.png" alt="Editor and live preview side by side">
 
-## Controls
+## Formatting, always in reach
 
-Use **Cmd** on macOS and **Ctrl** on Windows/Linux.
+The bar under the editor puts bold, italic, strikethrough, code, links, headings
+and lists one click away. They wrap the selection, or the word under the cursor,
+and clicking again removes the formatting. Lists continue when you press Enter,
+nest with Tab and un-nest with Shift+Tab.
 
-| Action | Shortcut |
+## Many documents, side by side
+
+Split any pane right or down, up to eight panes at a time. Drag the dividers to
+resize them, and drag a header to move a pane somewhere else. Each pane keeps its
+own cursor, even when two panes show the same document.
+
+<img src="assets/screenshots/panes.png" alt="Two documents open in split panes">
+
+## Make it yours
+
+Use a light theme, a dark one, or follow the system. Write in monospace, sans or
+serif, or in **any font installed on your computer**, from a searchable list
+that shows each font in its own face. Text size, line height, word wrap and the
+status line are all adjustable.
+
+<img src="assets/screenshots/settings.png" alt="Settings with the font picker open">
+
+## Never lose a word
+
+- Unsaved documents, even ones you never named, survive quitting, restarting
+  and crashes. Everything comes back exactly as you left it.
+- Saves are atomic: the old file is only replaced once the new one is safely
+  written, and file permissions are kept.
+- If a file changed on disk since you opened it, writestuff won't overwrite it.
+  Save a copy with Save as instead.
+- Closing a document or quitting with unsaved changes always asks first.
+- Click a title to rename it. For a saved document, that renames the file on
+  disk.
+
+## Shortcuts
+
+Use **Cmd** on macOS and **Ctrl** on Windows and Linux.
+
+| | |
 | --- | --- |
-| New document/tab | Cmd/Ctrl+N or T |
-| Open | Cmd/Ctrl+O |
-| Save / Save as | Cmd/Ctrl+S / Shift+S |
-| Close tab | Cmd/Ctrl+W |
-| Split right / down | Cmd/Ctrl+D / Cmd/Ctrl+Shift+D |
-| Close pane (keep document) | Cmd/Ctrl+Shift+W |
-| Find and replace | Cmd/Ctrl+F |
-| Undo | Cmd/Ctrl+Z |
-| Redo | Cmd+Shift+Z; Ctrl+Y or Ctrl+Shift+Z |
-| Increase/decrease font | Cmd/Ctrl+Plus / Minus |
-| Settings | Cmd/Ctrl+, or `⋯` |
-| Cut/copy/paste/select all | Standard platform shortcuts |
+| New document | Cmd N |
+| Open / Save / Save as | Cmd O / Cmd S / Cmd ⇧ S |
+| Close document / Close pane | Cmd W / Cmd ⇧ W |
+| Split right / Split down | Cmd D / Cmd ⇧ D |
+| Preview / Side by side | Cmd P / Cmd ⇧ P |
+| Find and replace | Cmd F |
+| Bold / Italic / Strikethrough | Cmd B / Cmd I / Cmd ⇧ X |
+| Code / Link | Cmd E / Cmd K |
+| Bulleted / Numbered / Checklist | Cmd ⇧ 8 / Cmd ⇧ 7 / Cmd ⇧ 9 |
+| Nest / un-nest list items | Tab / ⇧ Tab |
+| Bigger / smaller text | Cmd + / Cmd − |
+| Undo / Redo | Cmd Z / Cmd ⇧ Z |
+| Settings | Cmd , |
 
-Drag a tab by its name to reorder it. Click a pane, then select a tab to show
-that document there. `↔` splits side by side; `↕` splits above/below. New panes
-start with a separate blank document and receive keyboard focus. Selecting an
-already-open tab in a pane deliberately shows that same document there. Drag separators to
-resize and pane headers to rearrange; a pane's `×` removes that view without
-closing its document. Closing a tab uses an available hidden tab or removes its
-empty pane, rather than mirroring a neighboring document. At most eight panes can
-be open.
+## Install on macOS
 
-The **File** menu contains Open, Save, Save as, and Find and replace.
+```sh
+./install.sh
+```
 
-**Preview** toggles the active pane between editing and rendered Markdown for
-`.md` and `.markdown` files. It starts hidden. Find is literal and case-sensitive;
-**Next** wraps around. **Replace** replaces the selected match and finds the next;
-**All** replaces every match. Press Enter in Find to select the next match.
-
-Settings offer generic system monospace, sans-serif and serif families, size,
-line height, wrapping, theme, and status-bar visibility.
-
-## Content safety and recovery
-
-A dot marks an unsaved document. Closing a changed document or the window asks
-you to save, discard, or cancel. Failed/cancelled saves keep your buffer intact.
-Saving runs off the UI thread, uses a synced temporary file followed by atomic
-replacement, and preserves existing permissions. A save only marks its exact
-snapshot as saved, so edits made while saving remain dirty. Existing file changes
-are checked against the last saved contents; a conflict requires Save as.
-
-Documents, unsaved text, tab order, active document and preferences are recovered
-from `session.json` in the platform configuration directory:
-
-- macOS: `~/Library/Application Support/writestuff/`
-- Windows: `%APPDATA%\writestuff\config\`
-- Linux: `$XDG_CONFIG_HOME/writestuff/` (usually `~/.config/writestuff/`)
-
-Recovery writes are serialized and occur after 700 ms of inactivity. The previous
-snapshot is retained as `session.json.bak`. Recovery is also flushed on normal
-exit. Only one instance may use a configuration directory at a time; the OS
-releases the session lock on exit or crash. For isolated testing, set
-`WRITESTUFF_CONFIG_DIR` to a temporary directory. Recovery files contain your
-plain text and are never uploaded.
-
-## Known limitations
-
-- **Line numbers:** Iced 0.14's built-in text editor has no line-number gutter API.
-  A synchronized gutter and its toggle are unavailable. Cursor line/column is
-  shown in the optional status bar.
-- Views of the same document share its cursor, selection and scrolling state,
-  as well as its content. Independent cursors would require a custom editor.
-- Undo/redo retains 200 text snapshots per document, one per edit action. History
-  is not persisted; undo restores its cursor. This is intended for ordinary notes.
-- Recovery restores document snapshots, not split geometry or preview state.
-  Restored saved files are not automatically reloaded from disk; save-conflict
-  checks protect against overwriting external changes. The last 700 ms may be
-  unavailable after an abrupt crash. A damaged recovery file is reported and its backup is tried automatically;
-  damaged input is preserved separately on the next recovery write.
-- Files must be UTF-8. Binary/legacy-encoded files report an error. Existing line
-  endings and final-newline presence are preserved by the built-in editor.
-- Markdown preview uses Iced's supported Markdown subset, without remote images
-  or embedded HTML. Clicking a link displays its target locally.
-- External-change checks are best effort, not a filesystem transaction with other
-  programs. Atomic replacement changes inode identity and does not preserve
-  extended attributes or hard links. Avoid concurrently writing a file elsewhere.
-- This is a Cargo executable; OS installer bundles, file associations and native
-  application menus are not included. Open and Save use native file dialogs.
-- Verified with Rust 1.99.1 on macOS: compilation, linting, unit tests and a native
-  visual smoke test in an isolated temporary app bundle. Checked independent split
-  editing, both split shortcuts, and the close-tab unsaved-changes prompt.
-  Windows/Linux builds and interactive behavior have not been tested here.
-
-The current macOS dependency graph emits a future-compatibility warning for
-upstream `block 0.1.6`; application code passes Clippy with warnings denied.
+Quit writestuff first. Your documents are restored on the next launch.

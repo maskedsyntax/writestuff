@@ -1,11 +1,17 @@
 /// A binary tiling layout of editor panes.
 sealed class PaneNode {}
 
+/// What a pane shows: the editor, the rendered Markdown, or both side by side.
+enum PaneMode { edit, split, preview }
+
 class PaneLeaf extends PaneNode {
   PaneLeaf(this.id, this.document);
   final int id;
   int document;
-  bool preview = false;
+  PaneMode mode = PaneMode.edit;
+
+  /// True when only the rendered preview is shown (no editor).
+  bool get preview => mode == PaneMode.preview;
 }
 
 /// [horizontal] places children side by side (a vertical divider); otherwise
@@ -98,13 +104,13 @@ class Panes {
   void move(PaneLeaf pane, PaneLeaf target, DropEdge edge) {
     if (identical(pane, target)) return;
     if (edge == DropEdge.center) {
-      final doc = pane.document, preview = pane.preview;
+      final doc = pane.document, mode = pane.mode;
       pane
         ..document = target.document
-        ..preview = target.preview;
+        ..mode = target.mode;
       target
         ..document = doc
-        ..preview = preview;
+        ..mode = mode;
       return;
     }
     final parent = _parentOf(pane)!;

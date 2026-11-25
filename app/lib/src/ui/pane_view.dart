@@ -206,9 +206,39 @@ class _PaneViewState extends State<PaneView> {
           );
         }
 
-        final body = pane.preview
-            ? _Preview(state: state, document: doc, gutter: gutter)
-            : _Editor(state: state, pane: pane, gutter: gutter);
+        final Widget body = switch (pane.mode) {
+          PaneMode.edit => _Editor(state: state, pane: pane, gutter: gutter),
+          PaneMode.preview => _Preview(
+            state: state,
+            document: doc,
+            gutter: gutter,
+          ),
+          PaneMode.split => Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(
+                child: _Editor(
+                  state: state,
+                  pane: pane,
+                  gutter: gutter,
+                  inner: 20,
+                ),
+              ),
+              Container(width: 1, color: t.hairline),
+              Expanded(
+                child: ColoredBox(
+                  color: t.sidebar.withValues(alpha: 0.35),
+                  child: _Preview(
+                    state: state,
+                    document: doc,
+                    gutter: gutter,
+                    inner: 24,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        };
 
         return DragTarget<PaneLeaf>(
           onWillAcceptWithDetails: (d) => !identical(d.data, pane),
@@ -233,6 +263,13 @@ class _PaneViewState extends State<PaneView> {
                       if (active && state.findOpen)
                         FindBar(state: state, gutter: gutter),
                       Expanded(child: body),
+                      if (!pane.preview && doc.isMarkdown)
+                        _FormatBar(
+                          state: state,
+                          pane: pane,
+                          gutter: gutter,
+                          compact: constraints.maxWidth < 520,
+                        ),
                     ],
                   ),
                   if (_hoverEdge != null) _DropHighlight(edge: _hoverEdge!),
@@ -425,17 +462,23 @@ class _Header extends StatelessWidget {
           SizedBox(height: compact ? 10 : 22),
           Row(
             children: [
-              PillChip(
-                label: 'Edit',
-                selected: !pane.preview,
-                onTap: () => state.setPreview(false, pane),
-              ),
-              const SizedBox(width: 4),
-              PillChip(
-                label: 'Preview',
-                selected: pane.preview,
-                onTap: () => state.setPreview(true, pane),
-              ),
+              for (final (mode, label, tip) in [
+                (PaneMode.edit, 'Edit', null),
+                (
+                  PaneMode.split,
+                  'Side by side',
+                  shortcutLabel('P', shift: true),
+                ),
+                (PaneMode.preview, 'Preview', shortcutLabel('P')),
+              ]) ...[
+                PillChip(
+                  label: label,
+                  tooltip: tip,
+                  selected: pane.mode == mode,
+                  onTap: () => state.setMode(mode, pane),
+                ),
+                const SizedBox(width: 4),
+              ],
               const SizedBox(width: 16),
               if (status != null)
                 Expanded(
@@ -649,7 +692,18 @@ class _PaneMenu extends StatelessWidget {
           () => state.split(horizontal: false),
           enabled: state.panes.length < 8,
         ),
-        item(pane.preview ? 'Edit' : 'Preview', null, state.togglePreview),
+        item(
+          pane.preview ? 'Edit' : 'Preview',
+          shortcutLabel('P'),
+          state.togglePreview,
+        ),
+        item(
+          pane.mode == PaneMode.split
+              ? 'Hide side-by-side preview'
+              : 'Side by side',
+          shortcutLabel('P', shift: true),
+          state.toggleSideBySide,
+        ),
         item('Find and replace…', shortcutLabel('F'), state.toggleFind),
         const PopupMenuDivider(height: 9),
         if (state.panes.length > 1)
@@ -668,22 +722,214 @@ class _PaneMenu extends StatelessWidget {
   }
 }
 
+/// Formatting buttons under the editor, always in reach while typing.
+class _FormatBar extends StatelessWidget {
+  const _FormatBar({
+    required this.state,
+    required this.pane,
+    required this.gutter,
+    required this.compact,
+  });
+  final AppState state;
+  final PaneLeaf pane;
+  final double gutter;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final controller = state.controllerFor(pane);
+
+    Widget button(Widget child, String tip, VoidCallback action) => Padding(
+      padding: const EdgeInsets.only(right: 6),
+      child: _FormatButton(tooltip: tip, onPressed: action, child: child),
+    );
+    Widget glyph(String text, {FontStyle? style, TextDecoration? deco}) => Text(
+      text,
+      style: TextStyle(
+        fontSize: 15,
+        fontWeight: FontWeight.w700,
+        fontStyle: style,
+        decoration: deco,
+        decorationColor: t.text,
+        decorationThickness: 2,
+        color: t.text,
+        height: 1,
+      ),
+    );
+    Widget icon(IconData data) => Icon(data, size: 17, color: t.text);
+    final divider = Container(
+      width: 1,
+      height: 20,
+      margin: const EdgeInsets.only(left: 4, right: 10),
+      color: t.hairline,
+    );
+
+    // Taps on the bar count as taps inside the editor, so it keeps focus
+    // and its selection.
+    return TextFieldTapRegion(
+      child: Container(
+        decoration: BoxDecoration(
+          border: Border(top: BorderSide(color: t.hairline)),
+        ),
+        padding: EdgeInsets.fromLTRB(gutter - 6, 8, gutter, 8),
+        child: Row(
+          children: [
+            Expanded(
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    button(
+                      glyph('B'),
+                      'Bold  ${shortcutLabel('B')}',
+                      state.bold,
+                    ),
+                    button(
+                      glyph('I', style: FontStyle.italic),
+                      'Italic  ${shortcutLabel('I')}',
+                      state.italic,
+                    ),
+                    button(
+                      glyph('S', deco: TextDecoration.lineThrough),
+                      'Strikethrough  ${shortcutLabel('X', shift: true)}',
+                      state.strikethrough,
+                    ),
+                    button(
+                      icon(Icons.code_rounded),
+                      'Code  ${shortcutLabel('E')}',
+                      state.code,
+                    ),
+                    button(
+                      icon(Icons.link_rounded),
+                      'Link  ${shortcutLabel('K')}',
+                      state.link,
+                    ),
+                    button(glyph('H'), 'Heading (H1 → H2 → H3)', state.heading),
+                    divider,
+                    button(
+                      icon(Icons.format_list_bulleted_rounded),
+                      'Bulleted list  ${shortcutLabel('8', shift: true)}',
+                      () => state.toggleList(ordered: false),
+                    ),
+                    button(
+                      icon(Icons.format_list_numbered_rounded),
+                      'Numbered list  ${shortcutLabel('7', shift: true)}',
+                      () => state.toggleList(ordered: true),
+                    ),
+                    button(
+                      icon(Icons.checklist_rounded),
+                      'Checklist  ${shortcutLabel('9', shift: true)}',
+                      () => state.toggleList(ordered: false, task: true),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            if (!compact)
+              ListenableBuilder(
+                listenable: controller,
+                builder: (context, _) {
+                  final s = controller.selection;
+                  final selected = s.isValid && !s.isCollapsed
+                      ? s.textInside(controller.text)
+                      : '';
+                  final words = RegExp(r'\S+').allMatches(selected).length;
+                  return Padding(
+                    padding: const EdgeInsets.only(left: 12),
+                    child: Text(
+                      selected.isEmpty
+                          ? 'Select text to format'
+                          : '$words ${words == 1 ? 'word' : 'words'} selected',
+                      style: TextStyle(fontSize: 12.5, color: t.muted),
+                    ),
+                  );
+                },
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// A square, softly filled button like the ones in Things' editing bar.
+class _FormatButton extends StatefulWidget {
+  const _FormatButton({
+    required this.child,
+    required this.tooltip,
+    required this.onPressed,
+  });
+  final Widget child;
+  final String tooltip;
+  final VoidCallback onPressed;
+
+  @override
+  State<_FormatButton> createState() => _FormatButtonState();
+}
+
+class _FormatButtonState extends State<_FormatButton> {
+  bool hover = false, down = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    return Tooltip(
+      message: widget.tooltip,
+      waitDuration: const Duration(milliseconds: 500),
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        onEnter: (_) => setState(() => hover = true),
+        onExit: (_) => setState(() => hover = false),
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTapDown: (_) => setState(() => down = true),
+          onTapCancel: () => setState(() => down = false),
+          onTap: () {
+            setState(() => down = false);
+            widget.onPressed();
+          },
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 90),
+            width: 34,
+            height: 32,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: down
+                  ? t.chip
+                  : hover
+                  ? t.selection
+                  : t.hover,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: widget.child,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _Editor extends StatelessWidget {
   const _Editor({
     required this.state,
     required this.pane,
     required this.gutter,
+    this.inner,
   });
   final AppState state;
   final PaneLeaf pane;
   final double gutter;
+
+  /// Right padding when the preview sits beside the editor.
+  final double? inner;
 
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
     final controller = state.controllerFor(pane)..palette = t.highlight;
     final style = editorStyle(state.settings, t.text);
-    final padding = EdgeInsets.fromLTRB(gutter, 6, gutter, 16);
+    final padding = EdgeInsets.fromLTRB(gutter, 6, inner ?? gutter, 16);
 
     Widget field(double? width) => SizedBox(
       width: width,
@@ -750,10 +996,14 @@ class _Preview extends StatelessWidget {
     required this.state,
     required this.document,
     required this.gutter,
+    this.inner,
   });
   final AppState state;
   final Document document;
   final double gutter;
+
+  /// Left padding when the preview sits beside the editor.
+  final double? inner;
 
   @override
   Widget build(BuildContext context) {
@@ -794,10 +1044,26 @@ class _Preview extends StatelessWidget {
     return Markdown(
       data: document.text,
       selectable: true,
-      padding: EdgeInsets.fromLTRB(gutter, 6, gutter, 80),
+      padding: EdgeInsets.fromLTRB(inner ?? gutter, 6, gutter, 80),
       styleSheet: sheet,
       onTapLink: (text, href, title) =>
           state.showNotice('Link: ${href ?? text}'),
+      // The default checkbox icon is nearly invisible on the dark canvas.
+      checkboxBuilder: (checked) => Padding(
+        padding: EdgeInsets.only(right: size * 0.5, top: size * 0.3),
+        child: Container(
+          width: size * 0.95,
+          height: size * 0.95,
+          decoration: BoxDecoration(
+            color: checked ? t.accent : null,
+            borderRadius: BorderRadius.circular(size * 0.22),
+            border: Border.all(color: checked ? t.accent : t.muted, width: 1.5),
+          ),
+          child: checked
+              ? Icon(Icons.check_rounded, size: size * 0.8, color: Colors.white)
+              : null,
+        ),
+      ),
       // No remote images; show the alt text instead.
       imageBuilder: (uri, title, alt) => Text(
         alt ?? uri.toString(),

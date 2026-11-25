@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
 
 import 'model/document.dart';
+import 'model/inline.dart' as inline;
 import 'model/lists.dart' as lists;
 import 'model/panes.dart';
 import 'storage/atomic_file.dart';
@@ -147,12 +148,24 @@ class AppState extends ChangeNotifier {
   }
 
   /// Cmd+Shift+8 / Cmd+Shift+7: toggle bullets or numbering on selected lines.
-  void toggleList({required bool ordered}) {
+  void toggleList({required bool ordered, bool task = false}) =>
+      format((v) => lists.toggleList(v, ordered: ordered, task: task));
+
+  /// Applies a formatting edit (format bar, Cmd+B and friends) to the
+  /// active pane, as one undoable step.
+  void format(TextEditingValue Function(TextEditingValue) edit) {
     if (blocked || panes.active.preview) return;
     final c = controllerFor(panes.active);
-    c.value = lists.toggleList(c.value, ordered: ordered);
+    c.value = edit(c.value);
     focusActive();
   }
+
+  void bold() => format((v) => inline.toggleWrap(v, '**'));
+  void italic() => format((v) => inline.toggleWrap(v, '_'));
+  void strikethrough() => format((v) => inline.toggleWrap(v, '~~'));
+  void code() => format((v) => inline.toggleWrap(v, '`'));
+  void link() => format(inline.insertLink);
+  void heading() => format(inline.cycleHeading);
 
   bool get editorFocused => _focus.values.any((f) => f.hasFocus);
 
@@ -505,7 +518,9 @@ class AppState extends ChangeNotifier {
         .toSet();
     final replacement = tabs.where((t) => !visible.contains(t)).firstOrNull;
     for (final pane in affected) {
-      if (replacement != null) {
+      if (identical(pane, _closingPane) && panes.length > 1) {
+        _closePane(pane);
+      } else if (replacement != null) {
         pane.document = replacement;
         _loadIntoPane(pane);
       } else if (panes.length > 1) {
@@ -516,6 +531,7 @@ class AppState extends ChangeNotifier {
       }
     }
     confirm = null;
+    _closingPane = null;
   }
 
   // ---------------------------------------------------- confirm and quit
@@ -535,6 +551,7 @@ class AppState extends ChangeNotifier {
   void cancel() {
     if (saving != null) return;
     confirm = null;
+    _closingPane = null;
     quitting = false;
     notifyListeners();
     focusActive();
@@ -580,13 +597,31 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Closes a pane together with its document, unless another pane still
+  /// shows that document. Unsaved changes are confirmed first.
   void closePane([PaneLeaf? pane]) {
     if (blocked) return;
-    if (_closePane(pane ?? panes.active)) {
-      _changed();
-      focusActive();
+    pane ??= panes.active;
+    final target = pane;
+    final shared = panes.leaves.any(
+      (l) => !identical(l, target) && l.document == target.document,
+    );
+    if (shared) {
+      if (_closePane(pane)) {
+        _changed();
+        focusActive();
+      }
+      return;
     }
+    panes.active = pane;
+    _closingPane = pane;
+    close(pane.document);
+    if (confirm == null) _closingPane = null;
   }
+
+  /// The pane being closed while its document's unsaved changes are
+  /// confirmed; it is removed instead of showing another document.
+  PaneLeaf? _closingPane;
 
   bool _closePane(PaneLeaf pane) {
     if (!panes.close(pane)) return false;
@@ -612,16 +647,21 @@ class AppState extends ChangeNotifier {
     focusActive();
   }
 
-  void setPreview(bool preview, [PaneLeaf? pane]) {
+  void setMode(PaneMode mode, [PaneLeaf? pane]) {
     if (blocked) return;
     pane ??= panes.active;
     panes.active = pane;
-    pane.preview = preview;
+    pane.mode = mode;
     _changed();
-    if (!preview) focusActive();
+    if (mode != PaneMode.preview) focusActive();
   }
 
-  void togglePreview() => setPreview(!panes.active.preview);
+  void togglePreview() =>
+      setMode(panes.active.preview ? PaneMode.edit : PaneMode.preview);
+
+  void toggleSideBySide() => setMode(
+    panes.active.mode == PaneMode.split ? PaneMode.edit : PaneMode.split,
+  );
 
   void focusActive() {
     WidgetsBinding.instance.addPostFrameCallback((_) {

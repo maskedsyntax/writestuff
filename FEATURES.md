@@ -284,7 +284,7 @@ These are listed so they are a deliberate decision, not carried over by accident
 - Closing a tab that was split into its own pane removes the pane instead of mirroring the neighbor.
 - Split keeps the original document and selects the new one.
 
-## 16. Added in the Flutter port
+## 16. Additions
 
 - [x] UI follows a sidebar-and-canvas layout. The sidebar replaces the tab strip and has New Document, Open and Settings in its footer. Each pane header has Find, Split right, Split down and Close pane icons, and the find bar opens inline under the active pane's header.
 - [x] Panes that show the same document keep independent cursors.
@@ -292,3 +292,7 @@ These are listed so they are a deliberate decision, not carried over by accident
 - [x] Rename: click the title (or `···` → Rename…). For an unsaved document this sets its name, which is stored in the session's optional `title` field. For a saved file it renames the file on disk, keeps the extension when none is typed, and refuses names that already exist. Enter or clicking away commits; Esc cancels.
 - [x] Lists: Enter continues bullet, numbered (incremented) and checklist items. Enter on an empty item outdents it, or ends the list at the top level. Tab and Shift+Tab nest and un-nest the selected items. Cmd/Ctrl+Shift+8 and Cmd/Ctrl+Shift+7 toggle bullets and numbering. Bullets display as `•` `◦` `▪` by depth.
 - [x] Typing is undone in bursts instead of one character at a time. Tab inserts a tab character outside lists.
+- [x] Format bar: Markdown documents in Edit mode have a bar under the editor with Bold, Italic, Strikethrough, Code, Link, Heading (cycles H1 → H2 → H3 → off), Bulleted, Numbered and Checklist. The right side shows "Select text to format" or how many words are selected. Bold, italic, strikethrough and code wrap the selection (or the word at the caret) and unwrap it when it is already formatted. Clicking the bar keeps the editor's focus and selection. Shortcuts: Cmd/Ctrl+B, +I, +Shift+X, +E, +K, and +Shift+9 for checklists. They only apply while the editor has focus.
+- [x] Close pane also closes its document and removes it from the sidebar, after the usual unsaved-changes prompt. This replaces the Rust behavior noted in section 15. If another pane shows the same document, only the pane closes. Cancel keeps both.
+- [x] Each pane has three view modes: **Edit**, **Side by side** (editor on the left, live preview on the right) and **Preview**. Cmd/Ctrl+P toggles Preview, Cmd/Ctrl+Shift+P toggles Side by side, and both are also in the `···` menu. Swapping panes by drag keeps each pane's mode.
+- [x] Fonts: Settings → Font has Monospace, Sans and Serif, plus **Other…**, a searchable list of every installed font family with each name drawn in its own font. The list comes from NSFontManager on macOS, `fc-list` on Linux and the Fonts registry key on Windows. The choice is stored in the session's optional `family` field and overrides the built-in choice. The chip shows the chosen family's name, and picking a built-in choice clears it. The font applies to the editor.

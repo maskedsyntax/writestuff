@@ -237,7 +237,7 @@ void main() {
     expect(a.exitAfterPersist, isFalse);
   });
 
-  test('split creates an independent document; closing the pane keeps it', () {
+  test('split creates an independent document; closing the pane closes it', () {
     final a = app();
     final original = a.activeId;
     final originalPane = a.panes.active;
@@ -250,9 +250,60 @@ void main() {
     expect(a.documents[original]!.text, 'original');
     expect(a.documents[created]!.text, 'x');
     a.closePane();
+    a.discard();
     expect(a.panes.length, 1);
-    expect(a.documents.containsKey(created), isTrue);
+    expect(a.documents.containsKey(created), isFalse);
+    expect(a.tabs, [original]);
     expect(a.activeId, original);
+  });
+
+  test('closing a pane removes it even when other documents are hidden', () {
+    final a = app();
+    final first = a.activeId;
+    a.newDocument();
+    final hidden = a.activeId;
+    a.select(first);
+    a.split(horizontal: true);
+    final created = a.activeId;
+    a.closePane();
+    expect(a.panes.length, 1);
+    expect(a.documents.containsKey(created), isFalse);
+    expect(a.tabs, [first, hidden]);
+    expect(a.activeId, first);
+  });
+
+  test('cancelling the unsaved prompt keeps the pane and document', () {
+    final a = app();
+    a.split(horizontal: true);
+    final pane = a.panes.active;
+    type(a, pane, 'draft');
+    a.closePane();
+    expect(a.confirm, pane.document);
+    a.cancel();
+    expect(a.panes.length, 2);
+    expect(a.documents.containsKey(pane.document), isTrue);
+  });
+
+  test('closing one of two panes on the same document keeps it', () {
+    final a = app();
+    final doc = a.activeId;
+    a.split(horizontal: true);
+    a.select(doc);
+    expect(a.panes.leaves.every((l) => l.document == doc), isTrue);
+    a.closePane();
+    expect(a.panes.length, 1);
+    expect(a.documents.containsKey(doc), isTrue);
+  });
+
+  test('side by side keeps the editor available', () {
+    final a = app();
+    a.toggleSideBySide();
+    expect(a.panes.active.mode, PaneMode.split);
+    expect(a.panes.active.preview, isFalse);
+    a.togglePreview();
+    expect(a.panes.active.preview, isTrue);
+    a.togglePreview();
+    expect(a.panes.active.mode, PaneMode.edit);
   });
 
   test('closing a split tab does not mirror the neighbor', () {

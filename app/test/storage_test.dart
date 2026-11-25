@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
+import 'package:writestuff/src/platform/fonts.dart';
 import 'package:writestuff/src/storage/atomic_file.dart';
 import 'package:writestuff/src/storage/session.dart';
 
@@ -93,5 +94,29 @@ void main() {
     expect(s.settings.size, 12);
     expect(s.settings.lineHeight, 1.6);
     expect(s.settings.appearance, Appearance.system);
+  });
+
+  test('chosen font family round-trips and is optional', () {
+    final s = Session.decode('{"settings":{"family":"Avenir Next"}}');
+    expect(s.settings.family, 'Avenir Next');
+    expect(Session.decode('{"settings":{}}').settings.family, isNull);
+    final json = s.settings.toJson();
+    expect(json['family'], 'Avenir Next');
+    expect(Settings().toJson().containsKey('family'), isFalse);
+  });
+
+  test('Windows font registry names become families', () {
+    const out = '''
+HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Fonts
+    Segoe UI Bold (TrueType)    REG_SZ    segoeuib.ttf
+    Cambria & Cambria Math (TrueType)    REG_SZ    cambria.ttc
+    Consolas (TrueType)    REG_SZ    consola.ttf
+''';
+    expect(windowsFamilies(out).toSet(), {
+      'Segoe UI',
+      'Cambria',
+      'Cambria Math',
+      'Consolas',
+    });
   });
 }

@@ -16,6 +16,18 @@ class MainFlutterWindow: NSWindow {
 
     RegisterGeneratedPlugins(registry: flutterViewController)
 
+    // Installed font families for the font picker in Settings.
+    let fonts = FlutterMethodChannel(
+      name: "writestuff/fonts",
+      binaryMessenger: flutterViewController.engine.binaryMessenger)
+    fonts.setMethodCallHandler { call, result in
+      if call.method == "families" {
+        result(NSFontManager.shared.availableFontFamilies)
+      } else {
+        result(FlutterMethodNotImplemented)
+      }
+    }
+
     super.awakeFromNib()
   }
 }
