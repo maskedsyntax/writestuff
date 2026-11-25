@@ -550,9 +550,25 @@ class SettingsCard extends StatelessWidget {
             row('Word wrap', toggle(s.wrap, (v) => s.wrap = v)),
             row('Status line', toggle(s.status, (v) => s.status = v)),
             const SizedBox(height: 10),
-            Text(
-              'writestuff. just a place to write stuff.',
-              style: TextStyle(fontSize: 11, color: t.faint),
+            Row(
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(5),
+                  child: Image.asset(
+                    state.dark
+                        ? 'assets/branding/logo-dark.png'
+                        : 'assets/branding/logo-light.png',
+                    width: 22,
+                    height: 22,
+                    filterQuality: FilterQuality.medium,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'writestuff. just a place to write stuff.',
+                  style: TextStyle(fontSize: 11, color: t.faint),
+                ),
+              ],
             ),
           ],
         ),
