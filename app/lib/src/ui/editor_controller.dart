@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../model/lists.dart';
+
 /// Colors used by the in-editor Markdown highlighter and find matches.
 class HighlightPalette {
   const HighlightPalette({
@@ -14,9 +16,12 @@ class HighlightPalette {
 }
 
 class _Mark {
-  _Mark(this.start, this.end, this.style);
+  _Mark(this.start, this.end, this.style, {this.replace});
   final int start, end;
   final TextStyle style;
+
+  /// Same-length display text, used to draw list markers as bullets.
+  final String? replace;
 }
 
 /// A text controller for one pane. It highlights Markdown syntax and find
@@ -31,6 +36,8 @@ class EditorController extends TextEditingController {
 
   static final _heading = RegExp(r'^#{1,6}[ \t].*$', multiLine: true);
   static final _quote = RegExp(r'^[ \t]*>.*$', multiLine: true);
+  static final _bullet = RegExp(r'^([ \t]*)[-*+](?=[ \t])', multiLine: true);
+  static const _glyphs = ['•', '◦', '▪'];
   static final _list = RegExp(
     r'^[ \t]*(?:[-*+]|\d+[.)])(?=[ \t])',
     multiLine: true,
@@ -61,6 +68,17 @@ class EditorController extends TextEditingController {
     }
 
     if (markdown) {
+      for (final m in _bullet.allMatches(text)) {
+        final depth = listDepth(m[1]!);
+        marks.add(
+          _Mark(
+            m.start + m[1]!.length,
+            m.start + m[1]!.length + 1,
+            TextStyle(color: pal.accent, fontWeight: FontWeight.w700),
+            replace: _glyphs[depth % _glyphs.length],
+          ),
+        );
+      }
       add(_heading, TextStyle(fontWeight: FontWeight.w700, color: pal.accent));
       add(_quote, TextStyle(color: pal.muted, fontStyle: FontStyle.italic));
       add(_list, TextStyle(color: pal.accent));
@@ -119,6 +137,14 @@ class EditorController extends TextEditingController {
     final marks = _marks(text);
     if (marks.isEmpty) return TextSpan(style: style, text: text);
 
+    // Swap in bullet glyphs; lengths match, so offsets and the caret agree.
+    var display = text;
+    for (final m in marks) {
+      if (m.replace != null) {
+        display = display.replaceRange(m.start, m.end, m.replace!);
+      }
+    }
+
     // Split the text at every mark boundary and merge overlapping styles.
     final points = <int>{0, text.length};
     for (final m in marks) {
@@ -137,7 +163,7 @@ class EditorController extends TextEditingController {
           merged = merged == null ? m.style : merged.merge(m.style);
         }
       }
-      children.add(TextSpan(text: text.substring(a, b), style: merged));
+      children.add(TextSpan(text: display.substring(a, b), style: merged));
     }
     return TextSpan(style: style, children: children);
   }

@@ -3,11 +3,13 @@ import 'dart:math' as math;
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 
 import '../app_state.dart';
 import '../model/document.dart';
 import '../model/panes.dart';
+import 'home.dart' show FindBar;
 import 'theme.dart';
 import 'widgets.dart';
 
@@ -176,7 +178,7 @@ class _PaneViewState extends State<PaneView> {
           compact: compact,
           gutter: gutter,
         );
-        if (split) {
+        if (split && state.renaming != pane.id) {
           header = Draggable<PaneLeaf>(
             data: pane,
             dragAnchorStrategy: pointerDragAnchorStrategy,
@@ -228,6 +230,8 @@ class _PaneViewState extends State<PaneView> {
                     children: [
                       SizedBox(height: top),
                       header,
+                      if (active && state.findOpen)
+                        FindBar(state: state, gutter: gutter),
                       Expanded(child: body),
                     ],
                   ),
@@ -298,6 +302,12 @@ class _Header extends StatelessWidget {
     final titleColor = active ? t.text : t.muted;
     final titleSize = compact ? 21.0 : 27.0;
     final split = state.panes.length > 1;
+    final titleStyle = TextStyle(
+      fontSize: titleSize,
+      fontWeight: FontWeight.w700,
+      letterSpacing: -0.4,
+      color: titleColor,
+    );
 
     final subtitle = doc.path == null
         ? (doc.dirty ? 'Not saved yet' : 'New document')
@@ -313,68 +323,89 @@ class _Header extends StatelessWidget {
       ].join('  ·  ');
     }
 
+    Widget tool(
+      IconData icon,
+      String tip,
+      VoidCallback? action, {
+      bool on = false,
+    }) => HoverButton(
+      tooltip: tip,
+      onPressed: action,
+      padding: const EdgeInsets.all(7),
+      child: Icon(
+        icon,
+        size: 16,
+        color: on ? t.accent : (active ? t.muted : t.faint),
+      ),
+    );
+    final canSplit = state.panes.length < Panes.maxPanes;
+
+    final title = state.renaming == pane.id
+        ? _TitleEditor(state: state, document: doc, style: titleStyle)
+        : MouseRegion(
+            cursor: SystemMouseCursors.text,
+            child: GestureDetector(
+              onTap: () => state.startRename(pane),
+              child: Tooltip(
+                message: 'Click to rename',
+                waitDuration: const Duration(seconds: 1),
+                child: Text(
+                  doc.name,
+                  overflow: TextOverflow.ellipsis,
+                  style: titleStyle,
+                ),
+              ),
+            ),
+          );
+
     return Padding(
-      padding: EdgeInsets.fromLTRB(gutter - 4, compact ? 14 : 30, 14, 8),
+      padding: EdgeInsets.fromLTRB(gutter - 4, compact ? 14 : 30, 12, 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
               const SizedBox(width: 4),
-              Container(
-                width: titleSize * 0.95,
-                height: titleSize * 0.95,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: active ? t.accent : t.faint,
-                    width: 2,
-                  ),
-                ),
-                child: ClipOval(
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: FractionallySizedBox(
-                      widthFactor: doc.dirty ? 0.5 : 1,
-                      heightFactor: 1,
-                      child: ColoredBox(
-                        color: (active ? t.accent : t.faint).withValues(
-                          alpha: doc.dirty ? 1 : 0.0,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
+              _StateDot(
+                size: titleSize * 0.95,
+                active: active,
+                dirty: doc.dirty,
               ),
               SizedBox(width: compact ? 10 : 14),
               Expanded(
                 child: Row(
                   children: [
-                    Flexible(
-                      child: Tooltip(
-                        message: doc.dirty ? 'Unsaved changes' : '',
-                        child: Text(
-                          doc.name,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: titleSize,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: -0.4,
-                            color: titleColor,
-                          ),
-                        ),
-                      ),
-                    ),
+                    Flexible(child: title),
                     const SizedBox(width: 10),
                     _PaneMenu(state: state, pane: pane),
                   ],
                 ),
               ),
+              const SizedBox(width: 8),
+              tool(
+                CupertinoIcons.search,
+                'Find and replace · ${shortcutLabel('F')}',
+                () {
+                  state.focusPane(pane);
+                  state.toggleFind();
+                },
+                on: active && state.findOpen,
+              ),
+              tool(
+                CupertinoIcons.square_split_2x1,
+                'Split right · ${shortcutLabel('D')}',
+                canSplit ? () => state.split(horizontal: true) : null,
+              ),
+              tool(
+                CupertinoIcons.square_split_1x2,
+                'Split down · ${shortcutLabel('D', shift: true)}',
+                canSplit ? () => state.split(horizontal: false) : null,
+              ),
               if (split)
-                HoverButton(
-                  tooltip: 'Close pane · ${shortcutLabel('W', shift: true)}',
-                  onPressed: () => state.closePane(pane),
-                  child: Icon(CupertinoIcons.xmark, size: 13, color: t.muted),
+                tool(
+                  CupertinoIcons.xmark,
+                  'Close pane · ${shortcutLabel('W', shift: true)}',
+                  () => state.closePane(pane),
                 ),
             ],
           ),
@@ -403,7 +434,6 @@ class _Header extends StatelessWidget {
               PillChip(
                 label: 'Preview',
                 selected: pane.preview,
-                tooltip: doc.isMarkdown ? null : 'Markdown files only',
                 onTap: () => state.setPreview(true, pane),
               ),
               const SizedBox(width: 16),
@@ -421,6 +451,126 @@ class _Header extends StatelessWidget {
           ),
           const SizedBox(height: 6),
         ],
+      ),
+    );
+  }
+}
+
+/// Ring next to the title: hollow when saved, half filled with unsaved changes.
+class _StateDot extends StatelessWidget {
+  const _StateDot({
+    required this.size,
+    required this.active,
+    required this.dirty,
+  });
+  final double size;
+  final bool active, dirty;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final color = active ? t.accent : t.faint;
+    return Tooltip(
+      message: dirty ? 'Unsaved changes' : 'Saved',
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          border: Border.all(color: color, width: 2),
+        ),
+        child: dirty
+            ? ClipOval(
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: FractionallySizedBox(
+                    widthFactor: 0.5,
+                    heightFactor: 1,
+                    child: ColoredBox(color: color),
+                  ),
+                ),
+              )
+            : null,
+      ),
+    );
+  }
+}
+
+/// Inline title field. Enter or clicking away commits; Esc cancels.
+class _TitleEditor extends StatefulWidget {
+  const _TitleEditor({
+    required this.state,
+    required this.document,
+    required this.style,
+  });
+  final AppState state;
+  final Document document;
+  final TextStyle style;
+
+  @override
+  State<_TitleEditor> createState() => _TitleEditorState();
+}
+
+class _TitleEditorState extends State<_TitleEditor> {
+  late final controller = TextEditingController(text: widget.document.name);
+  final focus = FocusNode();
+  bool done = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Select the name without its extension, like Finder.
+    final name = controller.text;
+    final dot = name.lastIndexOf('.');
+    controller.selection = TextSelection(
+      baseOffset: 0,
+      extentOffset: dot > 0 ? dot : name.length,
+    );
+    focus.addListener(() {
+      if (!focus.hasFocus) _commit();
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) => focus.requestFocus());
+  }
+
+  void _commit() {
+    if (done) return;
+    done = true;
+    widget.state.rename(widget.document.id, controller.text);
+  }
+
+  @override
+  void dispose() {
+    focus.dispose();
+    controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    return CallbackShortcuts(
+      bindings: {
+        const SingleActivator(LogicalKeyboardKey.escape): () {
+          done = true;
+          widget.state.cancelRename();
+        },
+      },
+      child: IntrinsicWidth(
+        child: TextField(
+          controller: controller,
+          focusNode: focus,
+          style: widget.style,
+          cursorColor: t.accent,
+          onSubmitted: (_) => _commit(),
+          decoration: InputDecoration(
+            isCollapsed: true,
+            border: InputBorder.none,
+            constraints: const BoxConstraints(minWidth: 120),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+            filled: true,
+            fillColor: t.hover,
+          ),
+        ),
       ),
     );
   }
@@ -471,7 +621,21 @@ class _PaneMenu extends StatelessWidget {
           shortcutLabel('S', shift: true),
           () => state.save(asNew: true),
         ),
+        item('Rename…', null, () => state.startRename(pane)),
         item('Open…', shortcutLabel('O'), state.open),
+        const PopupMenuDivider(height: 9),
+        item(
+          'Bulleted list',
+          shortcutLabel('8', shift: true),
+          () => state.toggleList(ordered: false),
+          enabled: !pane.preview,
+        ),
+        item(
+          'Numbered list',
+          shortcutLabel('7', shift: true),
+          () => state.toggleList(ordered: true),
+          enabled: !pane.preview,
+        ),
         const PopupMenuDivider(height: 9),
         item(
           'Split right',
@@ -485,11 +649,7 @@ class _PaneMenu extends StatelessWidget {
           () => state.split(horizontal: false),
           enabled: state.panes.length < 8,
         ),
-        item(
-          pane.preview ? 'Edit' : 'Preview Markdown',
-          null,
-          state.togglePreview,
-        ),
+        item(pane.preview ? 'Edit' : 'Preview', null, state.togglePreview),
         item('Find and replace…', shortcutLabel('F'), state.toggleFind),
         const PopupMenuDivider(height: 9),
         if (state.panes.length > 1)
@@ -598,15 +758,6 @@ class _Preview extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
-    if (!document.isMarkdown) {
-      return Padding(
-        padding: EdgeInsets.fromLTRB(gutter, 16, gutter, 0),
-        child: Text(
-          'Save this document as .md to preview Markdown.',
-          style: TextStyle(fontSize: 14, color: t.muted),
-        ),
-      );
-    }
     final size = state.settings.size;
     final base = TextStyle(fontSize: size, height: 1.55, color: t.text);
     final sheet = MarkdownStyleSheet.fromTheme(Theme.of(context)).copyWith(

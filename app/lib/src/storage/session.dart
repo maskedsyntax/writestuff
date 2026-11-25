@@ -62,17 +62,20 @@ class Snapshot {
   Snapshot({
     required this.id,
     this.path,
+    this.title,
     required this.text,
     required this.saved,
   });
   final int id;
   final String? path;
+  final String? title;
   final String text;
   final String saved;
 
   factory Snapshot.fromJson(Map<String, dynamic> j) => Snapshot(
     id: j['id'] as int,
     path: j['path'] as String?,
+    title: j['title'] as String?,
     text: j['text'] as String,
     saved: j['saved'] as String,
   );
@@ -80,6 +83,7 @@ class Snapshot {
   Map<String, dynamic> toJson() => {
     'id': id,
     'path': path,
+    if (title != null) 'title': title,
     'text': text,
     'saved': saved,
   };

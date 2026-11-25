@@ -102,24 +102,29 @@ class Sidebar extends StatelessWidget {
             child: Row(
               children: [
                 HoverButton(
-                  tooltip: 'Open… · ${shortcutLabel('O')}',
-                  onPressed: state.open,
+                  tooltip: 'New document · ${shortcutLabel('N')}',
+                  onPressed: state.newDocument,
                   padding: const EdgeInsets.symmetric(
                     horizontal: 8,
                     vertical: 6,
                   ),
                   child: Row(
                     children: [
-                      Icon(CupertinoIcons.folder, size: 16, color: t.muted),
+                      Icon(CupertinoIcons.plus, size: 16, color: t.muted),
                       const SizedBox(width: 8),
                       Text(
-                        'Open…',
+                        'New Document',
                         style: TextStyle(fontSize: 13, color: t.muted),
                       ),
                     ],
                   ),
                 ),
                 const Spacer(),
+                HoverButton(
+                  tooltip: 'Open… · ${shortcutLabel('O')}',
+                  onPressed: state.open,
+                  child: Icon(CupertinoIcons.folder, size: 17, color: t.muted),
+                ),
                 HoverButton(
                   tooltip: 'Settings · ${shortcutLabel(',')}',
                   onPressed: state.toggleSettings,

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -71,7 +72,10 @@ void main() {
     expect(Document(id: 3).name, 'Untitled 3');
     expect(Document(id: 1, path: '/a/B.MarkDown').isMarkdown, isTrue);
     expect(Document(id: 1, path: '/a/b.txt').isMarkdown, isFalse);
-    expect(Document(id: 1).isMarkdown, isFalse);
+    expect(Document(id: 1).isMarkdown, isTrue, reason: 'new docs are Markdown');
+    expect(Document(id: 1, title: 'notes.txt').isMarkdown, isFalse);
+    expect(Document(id: 4, title: 'Ideas').suggestedFileName, 'Ideas.md');
+    expect(Document(id: 4).suggestedFileName, 'Untitled 4.md');
   });
 
   test('same document in two panes shares edits but not cursors', () {
@@ -327,5 +331,74 @@ void main() {
     );
     expect(written.length, 1);
     expect(written.single.documents.single.text, 'ab');
+  });
+
+  test(
+    'renaming an unsaved document sets its title and survives restore',
+    () async {
+      final a = app();
+      final id = a.activeId;
+      await a.rename(id, '  Trip plan ');
+      expect(a.activeDocument.name, 'Trip plan');
+      final restored = app(Session.decode(jsonEncode(a.session.toJson())));
+      expect(restored.documents[id]!.name, 'Trip plan');
+      await a.rename(id, 'a/b');
+      expect(a.notice, contains('slashes'));
+    },
+  );
+
+  test(
+    'renaming a saved document renames the file and keeps its extension',
+    () async {
+      final dir = Directory.systemTemp.createTempSync('ws_rename');
+      addTearDown(() => dir.deleteSync(recursive: true));
+      File('${dir.path}/old.md').writeAsStringSync('hi');
+      File('${dir.path}/taken.md').writeAsStringSync('other');
+      final a = app();
+      await a.openPath('${dir.path}/old.md');
+      final id = a.activeId;
+      await a.rename(id, 'taken');
+      expect(a.notice, contains('already exists'));
+      expect(File('${dir.path}/old.md').existsSync(), isTrue);
+      await a.rename(id, 'new');
+      expect(a.activeDocument.name, 'new.md');
+      expect(File('${dir.path}/new.md').readAsStringSync(), 'hi');
+      expect(File('${dir.path}/old.md').existsSync(), isFalse);
+      expect(a.activeDocument.dirty, isFalse);
+    },
+  );
+
+  test('Enter and Tab in the editor build nested lists', () {
+    final a = app();
+    final pane = a.panes.active;
+    final c = a.controllerFor(pane);
+    type(a, pane, '- one');
+    a.focusFor(pane).onKeyEvent!(
+      a.focusFor(pane),
+      const KeyDownEvent(
+        physicalKey: PhysicalKeyboardKey.enter,
+        logicalKey: LogicalKeyboardKey.enter,
+        timeStamp: Duration.zero,
+      ),
+    );
+    expect(c.text, '- one\n- ');
+    a.focusFor(pane).onKeyEvent!(
+      a.focusFor(pane),
+      const KeyDownEvent(
+        physicalKey: PhysicalKeyboardKey.tab,
+        logicalKey: LogicalKeyboardKey.tab,
+        timeStamp: Duration.zero,
+      ),
+    );
+    expect(a.activeDocument.text, '- one\n  - ');
+    a.undo(redo: false);
+    expect(a.activeDocument.text, '- one\n- ');
+  });
+
+  test('toggle list command applies to the active pane', () {
+    final a = app();
+    type(a, a.panes.active, 'milk');
+    a.toggleList(ordered: false);
+    expect(a.activeDocument.text, '- milk');
   });
 }

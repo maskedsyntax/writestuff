@@ -283,3 +283,12 @@ These are listed so they are a deliberate decision, not carried over by accident
 - The split and close shortcuts use the platform command modifier, and Cmd+W on a dirty document prompts.
 - Closing a tab that was split into its own pane removes the pane instead of mirroring the neighbor.
 - Split keeps the original document and selects the new one.
+
+## 16. Added in the Flutter port
+
+- [x] UI follows a sidebar-and-canvas layout. The sidebar replaces the tab strip and has New Document, Open and Settings in its footer. Each pane header has Find, Split right, Split down and Close pane icons, and the find bar opens inline under the active pane's header.
+- [x] Panes that show the same document keep independent cursors.
+- [x] Preview works for any document, including unsaved ones. New documents are Markdown by default, and the save dialog suggests `<name>.md`.
+- [x] Rename: click the title (or `···` → Rename…). For an unsaved document this sets its name, which is stored in the session's optional `title` field. For a saved file it renames the file on disk, keeps the extension when none is typed, and refuses names that already exist. Enter or clicking away commits; Esc cancels.
+- [x] Lists: Enter continues bullet, numbered (incremented) and checklist items. Enter on an empty item outdents it, or ends the list at the top level. Tab and Shift+Tab nest and un-nest the selected items. Cmd/Ctrl+Shift+8 and Cmd/Ctrl+Shift+7 toggle bullets and numbering. Bullets display as `•` `◦` `▪` by depth.
+- [x] Typing is undone in bursts instead of one character at a time. Tab inserts a tab character outside lists.

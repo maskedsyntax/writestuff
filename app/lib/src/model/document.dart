@@ -12,19 +12,32 @@ class _History {
 /// One open text document. Text is shared by every pane that shows it; each
 /// pane keeps its own cursor.
 class Document {
-  Document({required this.id, this.path, String text = '', this.saved = ''})
-    : _text = text {
+  Document({
+    required this.id,
+    this.path,
+    this.title,
+    String text = '',
+    this.saved = '',
+  }) : _text = text {
     _refresh();
   }
 
-  factory Document.restore(Snapshot s) =>
-      Document(id: s.id, path: s.path, text: s.text, saved: s.saved);
+  factory Document.restore(Snapshot s) => Document(
+    id: s.id,
+    path: s.path,
+    title: s.title,
+    text: s.text,
+    saved: s.saved,
+  );
 
   static const historyLimit = 200;
   static const _coalesceWindow = Duration(milliseconds: 1000);
 
   final int id;
   String? path;
+
+  /// The name of a document that has no file yet.
+  String? title;
   String saved;
   String _text;
   int words = 0;
@@ -40,16 +53,23 @@ class Document {
   bool get canUndo => _undo.isNotEmpty;
   bool get canRedo => _redo.isNotEmpty;
 
-  String get name => path != null ? p.basename(path!) : 'Untitled $id';
+  String get name =>
+      path != null ? p.basename(path!) : (title ?? 'Untitled $id');
 
+  /// Saved files are Markdown by extension. New documents are Markdown unless
+  /// they were given a name with another extension.
   bool get isMarkdown {
-    if (path == null) return false;
-    final ext = p.extension(path!).toLowerCase();
+    final ext = p.extension(name).toLowerCase();
+    if (path == null && ext.isEmpty) return true;
     return ext == '.md' || ext == '.markdown';
   }
 
+  /// File name proposed by the save dialog.
+  String get suggestedFileName =>
+      p.extension(name).isEmpty && isMarkdown ? '$name.md' : name;
+
   Snapshot snapshot() =>
-      Snapshot(id: id, path: path, text: _text, saved: saved);
+      Snapshot(id: id, path: path, title: title, text: _text, saved: saved);
 
   void _refresh() {
     words = RegExp(r'\S+').allMatches(_text).length;
@@ -115,6 +135,7 @@ class Document {
   /// Marks exactly the text that was written as saved.
   void markSaved(String path, String text) {
     this.path = path;
+    title = null;
     saved = text;
   }
 }

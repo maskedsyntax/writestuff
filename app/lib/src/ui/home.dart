@@ -53,6 +53,16 @@ VoidCallback? shortcutFor(AppState state, KeyEvent event) {
     return () => state.split(horizontal: !shift);
   }
   if (key == LogicalKeyboardKey.keyF) return state.toggleFind;
+  if (shift &&
+      (key == LogicalKeyboardKey.digit8 ||
+          key == LogicalKeyboardKey.asterisk)) {
+    return () => state.toggleList(ordered: false);
+  }
+  if (shift &&
+      (key == LogicalKeyboardKey.digit7 ||
+          key == LogicalKeyboardKey.ampersand)) {
+    return () => state.toggleList(ordered: true);
+  }
   if (key == LogicalKeyboardKey.comma) return state.toggleSettings;
   return null;
 }
@@ -81,23 +91,14 @@ class Home extends StatelessWidget {
               children: [
                 SizedBox(width: 250, child: Sidebar(state: state)),
                 Container(width: 1, color: t.hairline.withValues(alpha: 0.6)),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Expanded(child: PaneGrid(state: state)),
-                      if (state.findOpen) FindBar(state: state),
-                      _Toolbar(state: state),
-                    ],
-                  ),
-                ),
+                Expanded(child: PaneGrid(state: state)),
               ],
             ),
             if (state.notice != null)
               Positioned(
                 left: 251,
                 right: 0,
-                bottom: 64 + (state.findOpen ? 52 : 0),
+                bottom: 24,
                 child: Center(child: _Notice(state: state)),
               ),
             if (state.settingsOpen)
@@ -114,70 +115,10 @@ class Home extends StatelessWidget {
   }
 }
 
-class _Toolbar extends StatelessWidget {
-  const _Toolbar({required this.state});
-  final AppState state;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.tokens;
-    final canSplit = state.panes.length < 8;
-    Widget tool(
-      IconData icon,
-      String tip,
-      VoidCallback? action, {
-      bool on = false,
-    }) => HoverButton(
-      tooltip: tip,
-      onPressed: action,
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-      child: Icon(icon, size: 19, color: on ? t.accent : t.muted),
-    );
-    return Container(
-      height: 52,
-      decoration: BoxDecoration(
-        color: t.canvas,
-        border: Border(top: BorderSide(color: t.hairline)),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: [
-          tool(
-            CupertinoIcons.plus,
-            'New document · ${shortcutLabel('T')}',
-            state.newDocument,
-          ),
-          tool(
-            CupertinoIcons.square_split_2x1,
-            'Split right · ${shortcutLabel('D')}',
-            canSplit ? () => state.split(horizontal: true) : null,
-          ),
-          tool(
-            CupertinoIcons.square_split_1x2,
-            'Split down · ${shortcutLabel('D', shift: true)}',
-            canSplit ? () => state.split(horizontal: false) : null,
-          ),
-          tool(
-            CupertinoIcons.eye,
-            'Toggle Markdown preview',
-            state.togglePreview,
-            on: state.panes.active.preview,
-          ),
-          tool(
-            CupertinoIcons.search,
-            'Find and replace · ${shortcutLabel('F')}',
-            state.toggleFind,
-            on: state.findOpen,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class FindBar extends StatefulWidget {
-  const FindBar({super.key, required this.state});
+  const FindBar({super.key, required this.state, required this.gutter});
   final AppState state;
+  final double gutter;
 
   @override
   State<FindBar> createState() => _FindBarState();
@@ -251,41 +192,42 @@ class _FindBarState extends State<FindBar> {
         ),
       ),
     );
-    return Container(
-      height: 52,
-      padding: const EdgeInsets.symmetric(horizontal: 18),
-      decoration: BoxDecoration(
-        color: t.canvas,
-        border: Border(top: BorderSide(color: t.hairline)),
-      ),
-      child: Row(
-        children: [
-          input(
-            find,
-            'Find',
-            state.setQuery,
-            state.findNext,
-            focus: state.findFocus,
-            icon: CupertinoIcons.search,
-          ),
-          const SizedBox(width: 8),
-          input(
-            replace,
-            'Replace with',
-            state.setReplacement,
-            state.replace,
-            icon: CupertinoIcons.arrow_2_squarepath,
-          ),
-          const SizedBox(width: 6),
-          action('Next', state.findNext),
-          action('Replace', state.replace),
-          action('All', state.replaceAll),
-          HoverButton(
-            tooltip: 'Close · ${shortcutLabel('F')}',
-            onPressed: state.toggleFind,
-            child: Icon(CupertinoIcons.xmark, size: 13, color: t.muted),
-          ),
-        ],
+    return CallbackShortcuts(
+      bindings: {
+        const SingleActivator(LogicalKeyboardKey.escape): state.toggleFind,
+      },
+      child: Container(
+        height: 44,
+        padding: EdgeInsets.fromLTRB(widget.gutter - 4, 2, 18, 8),
+        child: Row(
+          children: [
+            input(
+              find,
+              'Find',
+              state.setQuery,
+              state.findNext,
+              focus: state.findFocus,
+              icon: CupertinoIcons.search,
+            ),
+            const SizedBox(width: 8),
+            input(
+              replace,
+              'Replace with',
+              state.setReplacement,
+              state.replace,
+              icon: CupertinoIcons.arrow_2_squarepath,
+            ),
+            const SizedBox(width: 6),
+            action('Next', state.findNext),
+            action('Replace', state.replace),
+            action('All', state.replaceAll),
+            HoverButton(
+              tooltip: 'Close · ${shortcutLabel('F')}',
+              onPressed: state.toggleFind,
+              child: Icon(CupertinoIcons.xmark, size: 13, color: t.muted),
+            ),
+          ],
+        ),
       ),
     );
   }

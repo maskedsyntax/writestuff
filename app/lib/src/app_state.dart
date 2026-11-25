@@ -1,10 +1,13 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:path/path.dart' as p;
 
 import 'model/document.dart';
+import 'model/lists.dart' as lists;
 import 'model/panes.dart';
 import 'storage/atomic_file.dart';
 import 'storage/session.dart';
@@ -103,26 +106,52 @@ class AppState extends ChangeNotifier {
     ),
   );
 
-  /// Tab inserts a tab character instead of moving focus.
+  /// Enter continues lists; Tab / Shift+Tab nest list items. Tab elsewhere
+  /// inserts a tab character instead of moving focus.
   KeyEventResult _editorKey(int paneId, KeyEvent event) {
-    if (event is KeyUpEvent || event.logicalKey != LogicalKeyboardKey.tab) {
-      return KeyEventResult.ignored;
-    }
+    if (event is KeyUpEvent) return KeyEventResult.ignored;
+    final key = event.logicalKey;
+    final enter =
+        key == LogicalKeyboardKey.enter ||
+        key == LogicalKeyboardKey.numpadEnter;
+    if (!enter && key != LogicalKeyboardKey.tab) return KeyEventResult.ignored;
     final keys = HardwareKeyboard.instance;
-    if (keys.isShiftPressed ||
-        keys.isControlPressed ||
-        keys.isMetaPressed ||
-        keys.isAltPressed) {
+    if (keys.isControlPressed || keys.isMetaPressed || keys.isAltPressed) {
       return KeyEventResult.ignored;
     }
     final c = _controllers[paneId];
-    if (c == null || !c.selection.isValid) return KeyEventResult.ignored;
-    final s = c.selection;
-    c.value = TextEditingValue(
-      text: '${s.textBefore(c.text)}\t${s.textAfter(c.text)}',
-      selection: TextSelection.collapsed(offset: s.start + 1),
-    );
+    if (c == null || !c.selection.isValid || blocked) {
+      return KeyEventResult.ignored;
+    }
+    final shift = keys.isShiftPressed;
+    TextEditingValue? next;
+    if (enter) {
+      if (shift) return KeyEventResult.ignored;
+      next = lists.continueList(c.value);
+    } else {
+      next = lists.indentLines(c.value, outdent: shift);
+      if (next == null && !shift) {
+        final s = c.selection;
+        next = TextEditingValue(
+          text: '${s.textBefore(c.text)}\t${s.textAfter(c.text)}',
+          selection: TextSelection.collapsed(offset: s.start + 1),
+        );
+      }
+    }
+    if (next == null) {
+      // Shift+Tab outside a list: swallow it so focus stays in the editor.
+      return enter ? KeyEventResult.ignored : KeyEventResult.handled;
+    }
+    c.value = next;
     return KeyEventResult.handled;
+  }
+
+  /// Cmd+Shift+8 / Cmd+Shift+7: toggle bullets or numbering on selected lines.
+  void toggleList({required bool ordered}) {
+    if (blocked || panes.active.preview) return;
+    final c = controllerFor(panes.active);
+    c.value = lists.toggleList(c.value, ordered: ordered);
+    focusActive();
   }
 
   bool get editorFocused => _focus.values.any((f) => f.hasFocus);
@@ -338,7 +367,7 @@ class AppState extends ChangeNotifier {
       String? path = asNew ? null : doc.path;
       if (path == null) {
         final location = await getSaveLocation(
-          suggestedName: doc.name,
+          suggestedName: doc.suggestedFileName,
           confirmButtonText: 'Save',
         );
         if (location == null) return;
@@ -376,6 +405,74 @@ class AppState extends ChangeNotifier {
       saving = null;
       _changed();
     }
+  }
+
+  /// The pane whose title is being edited.
+  int? renaming;
+
+  void startRename([PaneLeaf? pane]) {
+    if (blocked) return;
+    pane ??= panes.active;
+    panes.active = pane;
+    renaming = pane.id;
+    notifyListeners();
+  }
+
+  void cancelRename() {
+    renaming = null;
+    notifyListeners();
+    focusActive();
+  }
+
+  /// Names an unsaved document, or renames a saved document's file on disk.
+  /// A name without an extension keeps the file's current extension.
+  Future<void> rename(int id, String input) async {
+    renaming = null;
+    final doc = documents[id];
+    var name = input.trim();
+    if (doc == null || blocked || name.isEmpty || name == doc.name) {
+      notifyListeners();
+      focusActive();
+      return;
+    }
+    if (name.contains('/') ||
+        name.contains('\\') ||
+        name == '.' ||
+        name == '..') {
+      _notify('A name cannot contain slashes.');
+      return;
+    }
+    final path = doc.path;
+    if (path == null) {
+      doc.title = name;
+      _changed();
+      focusActive();
+      return;
+    }
+    if (saving == id) {
+      _notify('Wait for this document to finish saving.');
+      return;
+    }
+    if (p.extension(name).isEmpty) name += p.extension(path);
+    final target = p.join(p.dirname(path), name);
+    final sameFile = target.toLowerCase() == path.toLowerCase();
+    final taken = documents.values.any((d) => d.id != id && d.path == target);
+    if (taken ||
+        (!sameFile &&
+            FileSystemEntity.typeSync(target, followLinks: false) !=
+                FileSystemEntityType.notFound)) {
+      _notify('“$name” already exists in this folder. Choose another name.');
+      return;
+    }
+    try {
+      await File(path).rename(target);
+      doc.path = canonicalize(target);
+    } catch (e) {
+      _notify('Could not rename: ${describeError(e)}');
+      return;
+    }
+    _changed();
+    focusActive();
   }
 
   void close([int? id]) {
